@@ -31,7 +31,7 @@ ainda estejam rodando.
 //- LEMBRAR DE TRATAR CTRL-C
 //* Leitura funcionando com liberação de memória OK
 //* tratadores de sinal OK
-//- Rodar mais de um comando da RUIM (BUG)
+//* Rodar mais de um comando da RUIM [CORRIGIDO]
 //& Fazer para vários filhos (PIPE!)
 //& Testar sinais no programa todo
 
@@ -51,7 +51,7 @@ void trataSIGTSTP(){
 
 char** linhaDecomando(int* indice){
 
-	char* linha;
+	char linha[MAX_STRING];
 	char* result;
 	char** comandos = (char**)malloc(sizeof(char*)*MAX_COMANDOS);
 	char* token = "A";
@@ -98,10 +98,11 @@ int main(){
 	int cont = 0;
 	//& CORPO DO WHILE
 	while(cont < 3){
+		indice = 0;
 		comandos = linhaDecomando(&indice);
 		//parte foreground
 		if(indice == 1){
-
+			printf("execucanto no %d\n", cont);
 			int pid;
 			if((pid = fork()) < 0){
 				printf("Infelizmente um erro ocorreu. Falha na criacao de um proceso\n");
@@ -137,6 +138,7 @@ int main(){
 		}
 		/*Processo Principal*/
 		wait(NULL);
+		liberaComandos(comandos, indice);
 		printf("vsh> ");
 		cont++;
 	}
@@ -149,7 +151,5 @@ int main(){
 	// for(int i = 0 ; i < indice; i++){
 	// 	printf("[%s]\n", comandos[i]);
 	// }
-
-	liberaComandos(comandos, indice);
 	return 0;
 }
