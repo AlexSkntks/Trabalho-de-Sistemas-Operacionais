@@ -29,14 +29,22 @@ ainda estejam rodando.
 */
 
 //- LEMBRAR DE TRATAR CTRL-C
+//- CONCERTAR MENSAGEM DE INFECÇÃO
+
 //* Leitura funcionando com liberação de memória OK
 //* tratadores de sinal OK
 //* Rodar mais de um comando da RUIM [CORRIGIDO]
+//* Rodando múltiplos comandos (Mas sem redirecionamento da saída, e sem tratamento de "Virus")
+//?  |-> Tá bugando a saída pois não tem o redirecionamento com PIPE
 //& Fazer para vários filhos (PIPE!)
+//& Implementar armagedon e libera moita
 //& Testar sinais no programa todo
 
+//^ O comando virus1 infecta o vsh com SIGUSR1
+//^ O comando virus2 infecta o vsh com SIGUSR2
+
 //Tratadores de sinais
-sig_t trataSIGINT(){
+void trataSIGINT(){
 	printf("Nao funciona fds\n");
 }
 
@@ -48,6 +56,38 @@ void trataSIGTSTP(){
 	printf("Nao funciona fds\n");
 }
 
+void fiqueiDoente(){
+	printf("I feel so sick, goodbye world...\n");
+	raise(SIGTERM);
+}
+
+void trataSIGUSER1(){
+	FILE* f = fopen("shellImune.txt", "r");
+	if(f == NULL){
+		printf("I feel sick but, I'm immune\n");
+		return;
+	}
+	char c;
+	while (!feof(f)){
+		fscanf(f, "%c", &c);
+		printf("%c", c);
+	}
+	fclose(f);
+}
+
+void trataSIGUSER2(){
+	FILE* f = fopen("shellImune.txt", "r");
+	if(f == NULL){
+		printf("I feel sick but, I'm immune\n");
+		return;
+	}
+	char c;
+	while (!feof(f)){
+		fscanf(f, "%c", &c);
+		printf("%c", c);
+	}
+	fclose(f);
+}
 
 char** linhaDecomando(int* indice){
 
@@ -61,6 +101,9 @@ char** linhaDecomando(int* indice){
 	//Faz a leitura de uma linha inteira de qualquer tamanho
 	if (result == NULL){
 		printf("Ocorreu um erro na leitura\n");
+		return NULL;
+	}
+	if(result[0] == 10){
 		return NULL;
 	}
 
@@ -92,27 +135,39 @@ int main(){
 	//Instalando tratadores de sinais
 	signal(SIGQUIT, trataSIGQUIT);
 	signal(SIGTSTP, trataSIGTSTP);
+	signal(SIGUSR1, trataSIGUSER1);
 
-	printf("vsh>: ");
-
+	printf("vsh> ");
+	
 	int cont = 0;
 	//& CORPO DO WHILE
-	while(cont < 3){
+	while(cont < 10){
+
 		indice = 0;
 		comandos = linhaDecomando(&indice);
-		//parte foreground
-		if(indice == 1){
-			printf("execucanto no %d\n", cont);
-			int pid;
-			if((pid = fork()) < 0){
+		if(comandos == NULL){
+			cont++;
+			continue;
+		}
+	
+		int c_pid[indice];//Armazenar o pid de todos os filhos
+
+		//-DEBUG PARA TESTAR SINAIS
+		if(strcmp(comandos[0], "virus1") == 0){
+			raise(SIGUSR1);
+		}else if(strcmp(comandos[0], "virus2") == 0){
+			raise(SIGUSR2);
+		}else if(indice == 1){//foreground
+
+			if((c_pid[0] = fork()) < 0){
 				printf("Infelizmente um erro ocorreu. Falha na criacao de um proceso\n");
 				exit(1);
 			}
 
-			if(pid == 0){
-
+			if(c_pid[0] == 0){
+				
 				char* flags[10];//Armazena o comando e as flags no formato do exec
-				//printf("[%s]\n", comandos[0]);
+				
 				char* token = strtok(comandos[0], " ");
 				int i = 0;
 
@@ -123,28 +178,65 @@ int main(){
 					i++;
 				}
 				flags[i] = NULL;
-
+				
 				execvp(flags[0], flags);
+				//Em caso de sucesso o código abaixo não é executado, 
+				//caso haja falha, o código abaixo exibe uma mensagem de erro no terminal
 
 				printf("Falha no comando: ");
 				for(int k = 0; k < i; k++){
 					printf("%s ", flags[k]);
 				}
 				printf("\n");
+
 				return 0;
 			}
-		}else{
-			/*Vários filhos*/
+			//Aqui o vsh espera pelo término de seu único filho, para simular o foreground
+			wait(NULL);
+		}else{//background
+			for(int p = 0; p < indice; p++){
+				
+				if((c_pid[p] = fork()) < 0){
+					printf("Infelizmente um erro ocorreu. Falha na criacao de um preocesso.\n");
+					exit(1);
+				}else if(c_pid[p] == 0){//Código do processo Filho
+					char* flags[10];
+					
+					char* token = strtok(comandos[p], " ");
+					int i = 0;
+
+					while (token != NULL){
+					//	printf("[]%s\n", token);
+						flags[i] = token;
+						token = strtok(NULL, " ");
+						i++;
+					}
+					flags[i] = NULL;
+
+					execvp(flags[0], flags);
+					//Em caso de sucesso o código abaixo não é executado, 
+					//caso haja falha, o código abaixo exibe uma mensagem de erro no terminal
+
+					printf("Falha no comando: ");
+					for(int k = 0; k < i; k++){
+						printf("%s ", flags[k]);
+					}
+					printf("\n");
+					return 0;
+				}
+			}
+
+			for(int i = 0; i < indice; i++){
+				waitpid(c_pid[i], NULL, WNOHANG);
+			}
+			
 		}
 		/*Processo Principal*/
-		wait(NULL);
 		liberaComandos(comandos, indice);
 		printf("vsh> ");
 		cont++;
 	}
-	
-	
-	
+
 	//& -----------------
 	
 	// //- DEBUG
