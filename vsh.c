@@ -144,8 +144,11 @@ int main(){
 
     int cont = 0;
 	int pid;//pid do filho em FG
-	int sentinela[MAX_SENT];//Sentinelas responsáveis pelos processos BG
+	int* sentinela;//Sentinelas responsáveis pelos processos BG
+
 	int n = 0;//Número de Sentinelas
+	int prox = 0; 
+	int tamSentinelas = MAX_SENT;//Tamnho do vetor de sentinelas
 
     //& CORPO DO WHILE
     while(cont < 10){
@@ -202,15 +205,37 @@ int main(){
 			waitpid(pid, NULL, 0);
         }else{//background
 			//Coleta de "zombies" (sentinelas que morreram e não tiveram status reportado ao vsh)
-			if(n == MAX_SENT){
+			//? -----------------------
+			if(n == MAX_SENT){//Procura por filhos zombies
+				prox = -1;
+				for(int i = 0; i < tamSentinelas; i++){
+					if(waitpid(sentinela[i], NULL, WNOHANG) > 0){
+						sentinela[i] = 0;
+						prox = i;
+						n--;
+					}
+				}
 
+				if(prox == -1){//vetor cheio e nenhum dos filhos terminou
+					int* aux = (int*)malloc(sizeof(int)*(tamSentinelas+3));
+					for(int i = 0; i < tamSentinelas; i++){
+						aux[i] = sentinela[i];
+					}
+					free(sentinela);
+					sentinela = aux;
+				}
+			}else{//Procura prox posição vazia
+				for(int i = 0; i < tamSentinelas; i++){
+					if(!sentinela[i]) prox = i;
+				}
 			}
-			if((sentinela[n] = fork()) < 0){
+			//? -----------------------
+			if((sentinela[prox] = fork()) < 0){
 				printf("Infelizmente um erro ocorreu. Falha na criacao de um preocesso.\n");
 				exit(1);
 			}
 			
-			if(sentinela[n] == 0){//Código do sentinela (VSH não executa essa parte)
+			if(sentinela[prox] == 0){//Código do sentinela (VSH não executa essa parte)
 				int c_pid[indice];//Armazenar o pid de todos os filhos
 				//setsid();//? Fazer mais testes quando o pipe estiver pronto
 				for(int p = 0; p < indice; p++){
