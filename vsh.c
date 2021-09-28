@@ -134,16 +134,16 @@ int main(){
     signal(SIGUSR1, trataSIGUSER);
 	signal(SIGUSR2, trataSIGUSER);
 
-	sigset_t mask;
-	sigemptyset(&mask);
-	sigaddset(&mask, SIGTSTP);
-	sigaddset(&mask, SIGQUIT);
-	sigaddset(&mask, SIGINT);
+	// sigset_t mask;
+	// sigemptyset(&mask);
+	// sigaddset(&mask, SIGTSTP);
+	// sigaddset(&mask, SIGQUIT);
+	// sigaddset(&mask, SIGINT);
 
-	if(sigprocmask(SIG_SETMASK, &mask, NULL)){
-		printf("Erro\n");
-		return 0;
-	}
+	// if(sigprocmask(SIG_SETMASK, &mask, NULL)){
+	// 	printf("Erro\n");
+	// 	return 0;
+	// }
 	
 
     //printf("vsh> ");
@@ -183,11 +183,11 @@ int main(){
 
     int n = 0;//Número de Sentinelas
     int prox = 0;
-    int tamSentinelas = MAX_SENT;//Tamnho do vetor de sentinelas
+    int tamSentinelas = MAX_SENT;//Tamanho do vetor de sentinelas
 
 	printf("vsh> ");
     //& CORPO DO WHILE
-    while(cont < 10){
+    while(cont < 4){
        
         indice = 0;
         comandos = linhaDecomando(&indice);
@@ -288,10 +288,13 @@ int main(){
 
             if(sentinela[prox] == 0){//Código do sentinela (VSH não executa essa parte)
 
+				printf("Criando %d filhos\n", indice);
+
                 //criacao e verificação dos pipes com base no numero de processos
-                int pipes = indice -1;
-                for (int i = 0; i < pipes; ++i) {
+                int pipes = 1;
+                for (int i = 0; i < pipes; i++) {
                     if (pipe(fd[i]) == -1){
+						printf("DEU ruim\n");
                         return 1;
                     }
                 }
@@ -304,9 +307,9 @@ int main(){
                         exit(1);
                     }else if(c_pid[p] == 0){//Código do processo Filho
 
-						sigset_t mask2;
-						sigemptyset(&mask);
-						sigprocmask(SIG_SETMASK, &mask2, &mask);//Processos filhos não estão protegidos de nenhum sinal
+						// sigset_t mask2;
+						// sigemptyset(&mask);
+						// sigprocmask(SIG_SETMASK, &mask2, &mask);//Processos filhos não estão protegidos de nenhum sinal
 
                         if (p == 0){//primeiro filho definido o pgid o proprio pid
                             setpgrp();
@@ -331,12 +334,14 @@ int main(){
                         if (p == 0){
                             //primeiro filho
                             //filho1: f[0][1]
+							
                             //faz a saida do exec ser direcionada ao pipe
                             dup2(fd[p][1], STDOUT_FILENO);
+
                         }else if (p == 4){
                             //quinto filho
                             //filho5: f[3][0]
-                            dup2(fd[p - 1][0], STDIN_FILENO);
+                            dup2(fd[p - 1][0], STDIN_FILENO);//Nota
                         }
                         else{
                             //segundo, terceiro, quarto filho
@@ -350,7 +355,11 @@ int main(){
                                 dup2(fd[p][1], STDOUT_FILENO);
                             }
                         }
-                        closeAllPipes(pipes, fd);
+                        //closeAllPipes(pipes, fd);
+						    for (int i = 0; i < pipes; ++i) {
+								close(fd[i][0]);
+								close(fd[i][1]);
+							}
 
                         execvp(flags[0], flags);
                         //Em caso de sucesso o código abaixo não é executado,
