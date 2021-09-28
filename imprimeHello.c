@@ -11,11 +11,11 @@ int main(int argc, char* argv[]){
 		return 0;
 	}
 
-	int t = (argv[1][0]%5)+1;
+	int t = (argv[1][0]%10)+1;
 	
 	sleep(t);//Espera uma quantidade aleatória com base na primeira letra
 
-	printf("[Esperei %ds] Ola %s, estou terminando de SIGUSR\n", t, argv[1]);
-	raise(SIGUSR1);
+	printf("[Esperei %ds] Ola %s, estou terminando\n", t, argv[1]);
+
 	return 0;
 }

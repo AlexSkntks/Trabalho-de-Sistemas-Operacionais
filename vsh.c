@@ -5,6 +5,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <signal.h>
 
 #define MAX_COMANDOS 6
 #define MAX_STRING 100
@@ -64,21 +65,7 @@ void fiqueiDoente(){
     raise(SIGTERM);
 }
 
-void trataSIGUSER1(){
-    FILE* f = fopen("shellImune.txt", "r");
-    if(f == NULL){
-        printf("I feel sick but, I'm immune\n");
-        return;
-    }
-    char c;
-    while (!feof(f)){
-        fscanf(f, "%c", &c);
-        printf("%c", c);
-    }
-    fclose(f);
-}
-
-void trataSIGUSER2(){
+void trataSIGUSER(){
     FILE* f = fopen("shellImune.txt", "r");
     if(f == NULL){
         printf("I feel sick but, I'm immune\n");
@@ -144,9 +131,20 @@ int main(){
     int indice = 0;
 
     //Instalando tratadores de sinais
-    signal(SIGQUIT, trataSIGQUIT);
-    signal(SIGTSTP, trataSIGTSTP);
-    signal(SIGUSR1, trataSIGUSER1);
+    signal(SIGUSR1, trataSIGUSER);
+	signal(SIGUSR2, trataSIGUSER);
+
+	sigset_t mask;
+	sigemptyset(&mask);
+	sigaddset(&mask, SIGTSTP);
+	sigaddset(&mask, SIGQUIT);
+	sigaddset(&mask, SIGINT);
+
+	if(sigprocmask(SIG_SETMASK, &mask, NULL)){
+		printf("Erro\n");
+		return 0;
+	}
+	
 
     //printf("vsh> ");
 
@@ -179,28 +177,37 @@ int main(){
 
     int cont = 0;
     int pid;//pid do filho em FG
-    int* sentinela;//Sentinelas responsáveis pelos processos BG
+
+	//Sentinelas responsáveis pelos processos BG
+    int* sentinela = (int*)malloc(sizeof(int)*MAX_SENT);
 
     int n = 0;//Número de Sentinelas
     int prox = 0;
     int tamSentinelas = MAX_SENT;//Tamnho do vetor de sentinelas
 
+	printf("vsh> ");
     //& CORPO DO WHILE
     while(cont < 10){
-        printf("vsh> ");
+       
         indice = 0;
         comandos = linhaDecomando(&indice);
         if(comandos == NULL){
-            cont++;
             continue;
+			cont++;
         }
 
-
         //-DEBUG PARA TESTAR SINAIS
-        if(strcmp(comandos[0], "virus1") == 0){
+        if(strcmp(comandos[0], "armagedon") == 0){
             raise(SIGUSR1);
-        }else if(strcmp(comandos[0], "virus2") == 0){
-            raise(SIGUSR2);
+        }else if(strcmp(comandos[0], "liberamoita") == 0){
+            for(int i = 0; i < tamSentinelas; i++){
+				if(sentinela[i] != 0){
+					if(waitpid(sentinela[i], NULL, WNOHANG) > 0){//negativo pra erro, 0 para filho n terminou
+						sentinela[i] = 0;
+						n--;
+					}
+				}
+			}
         }else if(indice == 1){//foreground
 
             if((pid = fork()) < 0){
@@ -209,7 +216,7 @@ int main(){
             }
 
             if(pid == 0){
-
+				
                 char* flags[10];//Armazena o comando e as flags no formato do exec
 
                 char* token = strtok(comandos[0], " ");
@@ -239,11 +246,13 @@ int main(){
             }
             //Aqui o vsh espera pelo término de seu único filho, para simular o foreground
             waitpid(pid, NULL, 0);
+			setbuf(stdin, NULL);
         }else{//background
-
+			
             //Coleta de "zombies" (sentinelas que morreram e não tiveram status reportado ao vsh)
             //? -----------------------
             if(n == MAX_SENT){//Procura por filhos zombies
+				
                 prox = -1;
                 for(int i = 0; i < tamSentinelas; i++){
                     if(waitpid(sentinela[i], NULL, WNOHANG) > 0){
@@ -263,9 +272,14 @@ int main(){
                 }
             }else{//Procura prox posição vazia
                 for(int i = 0; i < tamSentinelas; i++){
-                    if(!sentinela[i]) prox = i;
+                    if(!sentinela[i]){
+						prox = i;
+						break;
+					}
+					
                 }
             }
+			
             //? -----------------------
             if((sentinela[prox] = fork()) < 0){
                 printf("Infelizmente um erro ocorreu. Falha na criacao de um preocesso.\n");
@@ -283,12 +297,16 @@ int main(){
                 }
 
                 int c_pid[indice];//Armazenar o pid de todos os filhos
-                setsid();//? Fazer mais testes quando o pipe estiver pronto
+                //setsid();//? Fazer mais testes quando o pipe estiver pronto
                 for(int p = 0; p < indice; p++){
                     if((c_pid[p] = fork()) < 0){
                         printf("Infelizmente um erro ocorreu. Falha na criacao de um preocesso.\n");
                         exit(1);
                     }else if(c_pid[p] == 0){//Código do processo Filho
+
+						sigset_t mask2;
+						sigemptyset(&mask);
+						sigprocmask(SIG_SETMASK, &mask2, &mask);//Processos filhos não estão protegidos de nenhum sinal
 
                         if (p == 0){//primeiro filho definido o pgid o proprio pid
                             setpgrp();
@@ -350,14 +368,15 @@ int main(){
                 }
                 int status;
                 int pid1;//dupla declaracao de pid, modifiquei para pid1
+
                 //Espera por todos os filhos
                 for(int i = 0; i < indice; i++){
-                    pid1 = waitpid(-1*c_pid[0], &status, 0);//Ver se qualquer filho do grupo terminou
+                    pid1 = waitpid(-1, &status, 0);//Ver se qualquer filho do grupo terminou
                     if(pid1 != -1){
                         if(WIFSIGNALED(status)){
-                            if(WTERMSIG(status) == SIGUSR1){//Se algum filho terminoi de SIGUr
+                            if(WTERMSIG(status) == SIGUSR1 || WTERMSIG(status) == SIGUSR2){//Se algum filho terminoi de SIGUr
 
-                                printf("Filho terminou de sigUsr1, terminar os irmaos\n");
+                                //printf("Filho terminou de sigUsr1, terminar os irmaos\n");
                                 killpg(c_pid[0], SIGTERM);//Envia o sinal de terminação para o grupo todo
                                 break;
                             }
@@ -373,6 +392,7 @@ int main(){
         /*Processo Principal*/
         liberaComandos(comandos, indice);
         sleep(1);
+		printf("vsh> ");
         cont++;
     }
 
