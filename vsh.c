@@ -48,22 +48,9 @@ ainda estejam rodando.
 //^ O comando virus1 infecta o vsh com SIGUSR1
 //^ O comando virus2 infecta o vsh com SIGUSR2
 
-//Tratadores de sinais
-void trataSIGINT(){
-    printf("Nao funciona fds\n");
-}
 
-void trataSIGQUIT(){
-    printf("Nao funciona fds\n");
-}
-
-void trataSIGTSTP(){
-    printf("Nao funciona fds\n");
-}
-
-void fiqueiDoente(){
-    printf("I feel so sick, goodbye world...\n");
-    raise(SIGTERM);
+void trataArmagedon(){
+    
 }
 
 void trataSIGUSER(){
@@ -141,10 +128,10 @@ int main(){
     sigaddset(&mask, SIGQUIT);
     sigaddset(&mask, SIGINT);
 
-    // if(sigprocmask(SIG_SETMASK, &mask, NULL)){
-    // 	printf("Erro\n");
-    // 	return 0;
-    // }
+    if(sigprocmask(SIG_SETMASK, &mask, NULL)){
+    	printf("Erro\n");
+    	return 0;
+    }
 
 
     //printf("vsh> ");
@@ -197,7 +184,7 @@ int main(){
         indice = 0;
         comandos = linhaDecomando(&indice);
         if(comandos == NULL){
-            printf("vsh> \n");
+            printf("vsh> ");
             continue;
             cont++;
         }
@@ -222,6 +209,11 @@ int main(){
             }
 
             if(pid == 0){
+
+				//Adiciona sinais na máscara do processo FG
+				sigaddset(&mask, SIGUSR1);
+				sigaddset(&mask, SIGUSR2);
+				sigprocmask(SIG_SETMASK, &mask, NULL);
 
                 char* flags[10];//Armazena o comando e as flags no formato do exec
 
@@ -286,7 +278,6 @@ int main(){
                         sentinela[i] = 0;
                     }
 
-                    //printf("Realloc fudido\n");
                     prox = tamSentinelas;
                     tamSentinelas+=3;
                 }
@@ -306,11 +297,6 @@ int main(){
                 exit(1);
             }
 
-//            if(sentinela[prox] == 0){
-//                sleep((rand()%50)+1);
-//                return 0;
-//            }
-
             if(sentinela[prox] == 0){//Código do sentinela (VSH não executa essa parte)
 
                 printf("Criando %d filhos\n", indice);
@@ -325,7 +311,7 @@ int main(){
                 }
 
                 int c_pid[indice];//Armazenar o pid de todos os filhos
-                //setsid();//? Fazer mais testes quando o pipe estiver pronto
+                setsid();//? Fazer mais testes quando o pipe estiver pronto
                 for(int p = 0; p < indice; p++){
                     if((c_pid[p] = fork()) < 0){
                         printf("Infelizmente um erro ocorreu. Falha na criacao de um processo.\n");

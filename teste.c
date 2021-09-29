@@ -6,7 +6,7 @@
 
 int main(){
 
-	sleep(60);
+	sleep(10);
 	printf("Estou terminando normalmente\n");
 	return 0;
 }
