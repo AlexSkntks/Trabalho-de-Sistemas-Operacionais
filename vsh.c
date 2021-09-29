@@ -50,7 +50,7 @@ ainda estejam rodando.
 
 
 void trataArmagedon(){
-	killpg(0, SIGTERM);
+    killpg(0, SIGTERM);
 }
 
 void trataSIGUSER(){
@@ -105,16 +105,12 @@ void liberaComandos(char** vString, int indice){
     free(vString);
 }
 
-//tentativa de funcao que fecha os pipes
+//funcao que fecha os pipes
 void closeAllPipes(int nPipes, int fd[][2]){
     for (int i = 0; i < nPipes; ++i) {
         close(fd[i][0]);
         close(fd[i][1]);
     }
-}
-
-void liberaMoita(int* sentinela, int tam){
-
 }
 
 int main(){
@@ -133,12 +129,10 @@ int main(){
     sigaddset(&mask, SIGINT);
 
     if(sigprocmask(SIG_SETMASK, &mask, NULL)){
-    	printf("Erro\n");
-    	return 0;
+        printf("Erro\n");
+        return 0;
     }
 
-
-    //printf("vsh> ");
 
     // 4 pipes, pois sao 5 processos no maximo, 4 ligacoes entre eles
     int fd[4][2];
@@ -182,7 +176,7 @@ int main(){
     }
 
     printf("vsh> ");
-    while(cont < 10){
+    while(1){
 
         indice = 0;
         comandos = linhaDecomando(&indice);
@@ -194,21 +188,21 @@ int main(){
 
         //-DEBUG PARA TESTAR SINAIS
         if(strcmp(comandos[0], "armagedon") == 0){
-			printf("Encerrando todas as operacoes\n");
+            printf("Encerrando todas as operacoes\n");
             for(int i = 0; i < tamSentinelas; i++){
                 if(sentinela[i] != 0){
                     kill(sentinela[i], SIGUSR1);
                 }
             }
 
-		    for(int i = 0; i < tamSentinelas; i++){
+            for(int i = 0; i < tamSentinelas; i++){
                 if(sentinela[i] != 0){
                     waitpid(sentinela[i], NULL, 0);
                 }
             }
-			free(sentinela);
-			free(comandos);
-			raise(SIGTERM);
+            free(sentinela);
+            free(comandos);
+            raise(SIGTERM);
         }else if(strcmp(comandos[0], "liberamoita") == 0){
             for(int i = 0; i < tamSentinelas; i++){
                 if(sentinela[i] != 0){
@@ -227,10 +221,10 @@ int main(){
 
             if(pid == 0){
 
-				//Adiciona sinais na máscara do processo FG
-				sigaddset(&mask, SIGUSR1);
-				sigaddset(&mask, SIGUSR2);
-				sigprocmask(SIG_SETMASK, &mask, NULL);
+                //Adiciona sinais na máscara do processo FG
+                sigaddset(&mask, SIGUSR1);
+                sigaddset(&mask, SIGUSR2);
+                sigprocmask(SIG_SETMASK, &mask, NULL);
 
                 char* flags[10];//Armazena o comando e as flags no formato do exec
 
@@ -243,13 +237,17 @@ int main(){
                     token = strtok(NULL, " ");
                     i++;
                 }
+
+                //ultimo parametro do exec tem q ser NULL
                 flags[i] = NULL;
 
+                //flags[0] = ls
+                //flags[1] = -l
+                //flags[2] = NULL
                 execvp(flags[0], flags);
                 //Em caso de sucesso o código abaixo não é executado,
                 //caso haja falha, o código abaixo exibe uma mensagem de erro no terminal
 
-                //sleep(300);
 
                 printf("Falha no comando: ");
                 for(int k = 0; k < i; k++){
@@ -265,7 +263,6 @@ int main(){
         }else{//background
 
             //Coleta de "zombies" (sentinelas que morreram e não tiveram status reportado ao vsh)
-            //? -----------------------
             if(n == tamSentinelas || n == 5){//Procura por filhos zombies
 
                 prox = -1;
@@ -308,13 +305,13 @@ int main(){
 
             if(sentinela[prox] == 0){//Código do sentinela (VSH não executa essa parte)
 
-				sigemptyset(&mask);
-				sigprocmask(SIG_SETMASK, &mask, NULL);
+                sigemptyset(&mask);
+                sigprocmask(SIG_SETMASK, &mask, NULL);
 
-				signal(SIGUSR1, trataArmagedon);
+                signal(SIGUSR1, trataArmagedon);
 
                 //criacao e verificação dos pipes com base no numero de processos
-                int pipes = 1;
+                int pipes = indice -1;
                 for (int i = 0; i < pipes; i++) {
                     if (pipe(fd[i]) == -1){
                         printf("DEU ruim\n");
@@ -323,8 +320,8 @@ int main(){
                 }
 
                 int c_pid[indice];//Armazenar o pid de todos os filhos
-               	//setsid();
-				setpgrp();
+                setsid();
+                setpgrp();
                 for(int p = 0; p < indice; p++){
                     if((c_pid[p] = fork()) < 0){
                         printf("Infelizmente um erro ocorreu. Falha na criacao de um processo.\n");
@@ -335,7 +332,7 @@ int main(){
                         sigemptyset(&mask);
                         sigprocmask(SIG_SETMASK, &mask2, &mask);//Processos filhos não estão protegidos de nenhum sinal
 
-						setpgid(c_pid[p], getppid());//Processos filhos no msm grupo do sentinela
+                        setpgid(c_pid[p], getppid());//Processos filhos no msm grupo do sentinela
 
                         char* flags[10];
 
@@ -403,7 +400,6 @@ int main(){
                         if(WIFSIGNALED(status)){
                             if(WTERMSIG(status) == SIGUSR1 || WTERMSIG(status) == SIGUSR2){//Se algum filho terminoi de SIGUr
 
-                                //printf("Filho terminou de sigUsr1, terminar os irmaos\n");
                                 killpg(c_pid[0], SIGTERM);//Envia o sinal de terminação para o grupo todo
                                 break;
                             }
