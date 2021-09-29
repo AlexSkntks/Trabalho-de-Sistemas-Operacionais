@@ -50,7 +50,7 @@ ainda estejam rodando.
 
 
 void trataArmagedon(){
-    
+	killpg(0, SIGTERM);
 }
 
 void trataSIGUSER(){
@@ -111,6 +111,10 @@ void closeAllPipes(int nPipes, int fd[][2]){
         close(fd[i][0]);
         close(fd[i][1]);
     }
+}
+
+void liberaMoita(int* sentinela, int tam){
+
 }
 
 int main(){
@@ -178,7 +182,6 @@ int main(){
     }
 
     printf("vsh> ");
-    //& CORPO DO WHILE
     while(cont < 10){
 
         indice = 0;
@@ -191,7 +194,21 @@ int main(){
 
         //-DEBUG PARA TESTAR SINAIS
         if(strcmp(comandos[0], "armagedon") == 0){
-            raise(SIGUSR1);
+			printf("Encerrando todas as operacoes\n");
+            for(int i = 0; i < tamSentinelas; i++){
+                if(sentinela[i] != 0){
+                    kill(sentinela[i], SIGUSR1);
+                }
+            }
+
+		    for(int i = 0; i < tamSentinelas; i++){
+                if(sentinela[i] != 0){
+                    waitpid(sentinela[i], NULL, 0);
+                }
+            }
+			free(sentinela);
+			free(comandos);
+			raise(SIGTERM);
         }else if(strcmp(comandos[0], "liberamoita") == 0){
             for(int i = 0; i < tamSentinelas; i++){
                 if(sentinela[i] != 0){
@@ -247,8 +264,6 @@ int main(){
             setbuf(stdin, NULL);
         }else{//background
 
-            printf("vamos criar %d processos, n = %d\n", indice, n);
-
             //Coleta de "zombies" (sentinelas que morreram e não tiveram status reportado ao vsh)
             //? -----------------------
             if(n == tamSentinelas || n == 5){//Procura por filhos zombies
@@ -263,17 +278,11 @@ int main(){
                 }
 
                 if(prox == -1){//vetor cheio e nenhum dos filhos terminou
-                    printf("vamos aumentar o vetor\n");
-                    // int* aux = (int*)malloc(sizeof(int)*(tamSentinelas+3));
-                    // for(int i = 0; i < tamSentinelas; i++){
-                    //     aux[i] = sentinela[i];
-                    // }
+
                     int newtam = tamSentinelas + 3;
 
                     sentinela = realloc(sentinela, sizeof(int) * newtam);
 
-                    // free(sentinela);
-                    // sentinela = aux;
                     for(int i = tamSentinelas; i < (tamSentinelas+3); i++){
                         sentinela[i] = 0;
                     }
@@ -299,7 +308,10 @@ int main(){
 
             if(sentinela[prox] == 0){//Código do sentinela (VSH não executa essa parte)
 
-                printf("Criando %d filhos\n", indice);
+				sigemptyset(&mask);
+				sigprocmask(SIG_SETMASK, &mask, NULL);
+
+				signal(SIGUSR1, trataArmagedon);
 
                 //criacao e verificação dos pipes com base no numero de processos
                 int pipes = 1;
@@ -311,7 +323,8 @@ int main(){
                 }
 
                 int c_pid[indice];//Armazenar o pid de todos os filhos
-                setsid();//? Fazer mais testes quando o pipe estiver pronto
+               	//setsid();
+				setpgrp();
                 for(int p = 0; p < indice; p++){
                     if((c_pid[p] = fork()) < 0){
                         printf("Infelizmente um erro ocorreu. Falha na criacao de um processo.\n");
@@ -322,12 +335,7 @@ int main(){
                         sigemptyset(&mask);
                         sigprocmask(SIG_SETMASK, &mask2, &mask);//Processos filhos não estão protegidos de nenhum sinal
 
-                        if (p == 0){//primeiro filho definido o pgid o proprio pid
-                            setpgrp();
-                        }
-                        else{//proximos filhos herdam o pgid do primeiro filho
-                            setpgid(getpid(), c_pid[0]);
-                        }
+						setpgid(c_pid[p], getppid());//Processos filhos no msm grupo do sentinela
 
                         char* flags[10];
 
@@ -380,7 +388,7 @@ int main(){
                         return 0;
                     }
                     //Para impedir que a race-condition dê problrmas, os grupos são atualizados também na sentinela
-                    setpgid(c_pid[p], c_pid[0]);
+                    setpgid(c_pid[p], getpid());
                 }
 
                 closeAllPipes(pipes, fd);//pipes estavam depois do for, coloquei antes ta funcionando
@@ -419,11 +427,5 @@ int main(){
     sleep(1);
     if(sentinela != NULL) free(sentinela);
 
-    //& -----------------
-
-    // //- DEBUG
-    // for(int i = 0 ; i < indice; i++){
-    // 	printf("[%s]\n", comandos[i]);
-    // }
     return 0;
 }
