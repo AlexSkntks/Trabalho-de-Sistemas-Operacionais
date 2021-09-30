@@ -114,8 +114,8 @@ void closeAllPipes(int nPipes, int fd[][2]){
 }
 
 int main(){
-    srand(time(NULL));
-    char** comandos = NULL;//mudei aqui
+
+    char** comandos = NULL;
     int indice = 0;
 
     //Instalando tratadores de sinais
@@ -134,7 +134,21 @@ int main(){
     }
 
 
-    // 4 pipes, pois sao 5 processos no maximo, 4 ligacoes entre eles
+    int pid;//pid do filho em FG
+
+    //Sentinelas responsáveis pelos processos BG
+    int* sentinela = (int*)malloc(sizeof(int)*5);
+
+    int n = 0;//Número de Sentinelas
+    int prox = 0;
+    int tamSentinelas = 5;//Tamanho do vetor de sentinelas
+
+    for(int i = 0; i < tamSentinelas; i++){
+        sentinela[i] = 0;
+    }
+
+
+	// 4 pipes, pois sao 5 processos no maximo, 4 ligacoes entre eles
     int fd[4][2];
 
     //f[x][0] = read
@@ -160,21 +174,6 @@ int main(){
      * filho5: f[3][0]
      * */
 
-
-    int cont = 0;
-    int pid;//pid do filho em FG
-
-    //Sentinelas responsáveis pelos processos BG
-    int* sentinela = (int*)malloc(sizeof(int)*5);
-
-    int n = 0;//Número de Sentinelas
-    int prox = 0;
-    int tamSentinelas = 5;//Tamanho do vetor de sentinelas
-
-    for(int i = 0; i < tamSentinelas; i++){
-        sentinela[i] = 0;
-    }
-
     printf("vsh> ");
     while(1){
 
@@ -183,10 +182,8 @@ int main(){
         if(comandos == NULL){
             printf("vsh> ");
             continue;
-            cont++;
         }
 
-        //-DEBUG PARA TESTAR SINAIS
         if(strcmp(comandos[0], "armagedon") == 0){
             printf("Encerrando todas as operacoes\n");
             for(int i = 0; i < tamSentinelas; i++){
@@ -320,7 +317,7 @@ int main(){
                 }
 
                 int c_pid[indice];//Armazenar o pid de todos os filhos
-                setsid();
+                //setsid();
                 setpgrp();
                 for(int p = 0; p < indice; p++){
                     if((c_pid[p] = fork()) < 0){
@@ -388,10 +385,10 @@ int main(){
                     setpgid(c_pid[p], getpid());
                 }
 
-                closeAllPipes(pipes, fd);//pipes estavam depois do for, coloquei antes ta funcionando
+                closeAllPipes(pipes, fd);
 
                 int status;
-                int pid1;//dupla declaracao de pid, modifiquei para pid1
+                int pid1;
 
                 //Espera por todos os filhos
                 for(int i = 0; i < indice; i++){
@@ -417,11 +414,7 @@ int main(){
         liberaComandos(comandos, indice);
         sleep(1);
         printf("vsh> ");
-        cont++;
     }
-
-    sleep(1);
-    if(sentinela != NULL) free(sentinela);
 
     return 0;
 }
